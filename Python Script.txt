@@ -1,0 +1,60 @@
+import newrelic.agent
+import requests
+import json
+from time import sleep
+
+newrelic.agent.initialize("newrelic.ini")
+application = newrelic.agent.register_application()
+
+DECODABLE_AUTHORIZATION_TOKEN = "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Iks3c2hfMVM0OGV0c0RRY2p3M0JKdyJ9.eyJpc3MiOiJodHRwczovL2F1dGguZGVjb2RhYmxlLmNvLyIsInN1YiI6Imdvb2dsZS1vYXV0aDJ8MTA0NTk5MDU3MzA5NzQ1NDQxOTE1IiwiYXVkIjpbImh0dHBzOi8vYXBpLmRlY29kYWJsZS5jby8iLCJodHRwczovL2RlY29kYWJsZS51cy5hdXRoMC5jb20vdXNlcmluZm8iXSwiaWF0IjoxNjg3NzcxNDk5LCJleHAiOjE2ODc4NTc4OTksImF6cCI6IllIOWpjSWJ2Z3lscHJMR0F0emtGZ0lxNkQyRDZzS0dtIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSBhY3RpdmF0ZTpwaXBlbGluZSBhY3RpdmF0ZTpjb25uZWN0aW9uIHJlYWQ6YWNjb3VudCByZWFkOmJpbGxpbmcgcmVhZDpjb25uZWN0aW9uIHJlYWQ6cGlwZWxpbmUgcmVhZDpzdHJlYW0gd3JpdGU6YWNjb3VudCB3cml0ZTpiaWxsaW5nIHdyaXRlOmNvbm5lY3Rpb24gd3JpdGU6cGlwZWxpbmUgd3JpdGU6c3RyZWFtIHdyaXRlOnByZXZpZXcgb2ZmbGluZV9hY2Nlc3MiLCJvcmdfaWQiOiJvcmdfMENXQ1pQeFNOWGRGTXBaNSIsInBlcm1pc3Npb25zIjpbImFjdGl2YXRlOmNvbm5lY3Rpb24iLCJhY3RpdmF0ZTpwaXBlbGluZSIsInJlYWQ6YWNjb3VudCIsInJlYWQ6YmlsbGluZyIsInJlYWQ6Y29ubmVjdGlvbiIsInJlYWQ6cGlwZWxpbmUiLCJyZWFkOnByZXZpZXciLCJyZWFkOnN0cmVhbSIsIndyaXRlOmFjY291bnQiLCJ3cml0ZTpiaWxsaW5nIiwid3JpdGU6Y29ubmVjdGlvbiIsIndyaXRlOnBpcGVsaW5lIiwid3JpdGU6cHJldmlldyIsIndyaXRlOnN0cmVhbSJdfQ.Ew-74neJ26OoW56xlH-49gxLkyWtF0kqHCg6lja8-s12oNt8E37B4Cc1SrV8m1SavnbKH2q9j1NFtazo9iYcTxbYS-nj45nVq1hKIppqLZhMJpkIJGNFGzq-NlFmr0eONPKzZIzjkGY0pgX6w1U2EBsG1XPRtoXgpn2Uk3eF5lTOhzaBJXzz1vuUt52tyD1h3MRh6ajJiM6MzFVz8q6bn4C_4qgth8ys2ARojuMleZvhAkcZII7yftalTet9eOY7DlH_uvPhYNv9D69CyjzCi-eVHq0_UFDOavL6AAk0mZK47MlKFnnf04ISl35NQf76xt9lyfuXZKxNdZvJLtYx3A"
+CONNECTION_ID = "dea04eee"
+
+url = f"https://invincible-131.api.decodable.co/v1alpha2/connections/{CONNECTION_ID}"
+
+headers = {
+    "accept": "application/json",
+    "authorization": DECODABLE_AUTHORIZATION_TOKEN
+}
+
+# Define a flag to track connector state
+connector_running = True
+
+def generate_alert():
+    # Perform the necessary actions to generate an alert (e.g., send an email, trigger a webhook)
+    print("Alert: Decodable connector has stopped!")
+
+if __name__ == "__main__":
+    while True:
+        response = requests.get(url, headers=headers)
+        target_state = "RUNNING"
+
+        if response.status_code == 200:
+            response = json.loads(response.text)
+
+            metrics = {
+                "id": str(response["id"]),
+                "name": str(response["name"]),
+                "target_state": target_state,
+                "actual_state": str(response["actual_state"]),
+                "requested_tasks": str(response["requested_tasks"]),
+                "actual_tasks": str(response["actual_tasks"]),
+                "last_runtime_error_message": str(response["last_runtime_error"]["message"])
+            }
+
+            newrelic.agent.record_custom_event("Cloud_Decodable", metrics, application=application)
+
+            print(metrics)
+
+            # Check if target_state and actual_state are not equal
+            if metrics["target_state"] != metrics["actual_state"]:
+                # Connector has stopped, trigger an alert
+                if connector_running:
+                    generate_alert()
+                    connector_running = False
+            else:
+                connector_running = True
+
+        else:
+            print("Failed to retrieve data from Decodable API")
+
+        sleep(2)
